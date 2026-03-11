@@ -1,0 +1,40 @@
+# Monitoring targets configuration
+# Each target defines a project/service group to monitor
+
+targets:
+  - name: drcall-global
+    type: eks  # eks | ec2-docker | tomcat | cloudwatch
+    region: ap-southeast-7
+    log_groups:
+      # Add actual log group patterns once CloudWatch forwarding is set up
+      # For now, these are placeholders — update after Fluent Bit deployment
+      - pattern: "/drcall/prod/*"
+    github:
+      owner: spherecorp-kr
+      repo: drcall-global-backend
+    branch: develop
+    services:
+      - patient-service
+      - hospital-service
+      - appointment-service
+      - messaging-service
+      - payment-service
+      - admin-service
+      - storage-service
+      - translation-service
+      - video-call-service
+      - shipping-service
+      - webhook-receiver-service
+
+# Example: Adding another project
+# - name: other-project
+#   type: ec2-docker
+#   region: ap-northeast-2
+#   log_groups:
+#     - pattern: "/other-project/prod/*"
+#   github:
+#     owner: spherecorp-kr
+#     repo: other-project
+#   services:
+#     - api-server
+#     - worker

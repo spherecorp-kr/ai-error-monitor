@@ -1,0 +1,24 @@
+# Filtering rules for error collection
+
+# Patterns to ignore (regex)
+ignore_patterns:
+  - "HealthCheckController"
+  - "Tomcat.*ClientAbortException"
+  - "Broken pipe"
+  - "Connection reset by peer"
+  - "HttpMediaTypeNotAcceptableException"
+  - "NoHandlerFoundException.*favicon"
+  - "NoHandlerFoundException.*robots.txt"
+
+# Minimum severity to create GitHub issues
+min_issue_severity: medium  # critical, high, medium, low
+
+# Maximum issues per run (prevent flooding)
+max_issues_per_run: 20
+
+# Services to exclude from monitoring
+excluded_services: []
+
+# Error categories to skip issue creation
+skip_categories:
+  - Config  # Usually env-specific, not code issues
