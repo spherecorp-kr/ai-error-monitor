@@ -26,9 +26,9 @@ variable "github_token_secret_arn" {
 }
 
 variable "schedule_expression" {
-  description = "EventBridge schedule expression (default: daily midnight KST = 15:00 UTC)"
+  description = "EventBridge schedule expression (Asia/Seoul timezone)"
   type        = string
-  default     = "cron(0 15 * * ? *)"
+  default     = "cron(0 0 * * ? *)"
 }
 
 variable "log_query_hours" {
