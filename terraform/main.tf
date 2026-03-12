@@ -138,6 +138,17 @@ resource "aws_iam_role_policy" "lambda" {
         Action   = ["secretsmanager:GetSecretValue"]
         Resource = ["${var.openai_api_key_secret_arn}*", "${var.github_token_secret_arn}*"]
       },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface",
+          "ec2:AssignPrivateIpAddresses",
+          "ec2:UnassignPrivateIpAddresses",
+        ]
+        Resource = "*"
+      },
     ]
   })
 }
@@ -155,6 +166,14 @@ resource "aws_lambda_function" "collector" {
 
   filename         = "${path.module}/../dist/collector.zip"
   source_code_hash = filebase64sha256("${path.module}/../dist/collector.zip")
+
+  dynamic "vpc_config" {
+    for_each = length(var.vpc_subnet_ids) > 0 ? [1] : []
+    content {
+      subnet_ids         = var.vpc_subnet_ids
+      security_group_ids = var.vpc_security_group_ids
+    }
+  }
 
   environment {
     variables = {
@@ -184,6 +203,14 @@ resource "aws_lambda_function" "analyzer" {
   filename         = "${path.module}/../dist/analyzer.zip"
   source_code_hash = filebase64sha256("${path.module}/../dist/analyzer.zip")
 
+  dynamic "vpc_config" {
+    for_each = length(var.vpc_subnet_ids) > 0 ? [1] : []
+    content {
+      subnet_ids         = var.vpc_subnet_ids
+      security_group_ids = var.vpc_security_group_ids
+    }
+  }
+
   environment {
     variables = {
       AWS_REGION_OVERRIDE  = var.aws_region
@@ -191,7 +218,7 @@ resource "aws_lambda_function" "analyzer" {
       OPENAI_API_KEY_ARN   = var.openai_api_key_secret_arn
       GITHUB_TOKEN_ARN     = var.github_token_secret_arn
       CLASSIFY_MODEL       = "gpt-5-nano"
-      ANALYZE_MODEL        = "gpt-5-nano"
+      ANALYZE_MODEL        = "gpt-5.1-codex-mini"
     }
   }
 

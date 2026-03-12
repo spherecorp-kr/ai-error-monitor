@@ -3,15 +3,17 @@
 
 targets:
   - name: drcall-global
-    type: eks  # eks | ec2-docker | tomcat | cloudwatch
+    type: loki
     region: ap-southeast-7
-    log_groups:
-      # Add actual log group patterns once CloudWatch forwarding is set up
-      # For now, these are placeholders — update after Fluent Bit deployment
-      - pattern: "/drcall/prod/*"
+    loki_url: http://k8s-monitori-lokiinte-0b3e2d4945-598e4159caa5c488.elb.ap-southeast-7.amazonaws.com:3100
+    loki_queries:
+      backend: '{namespace="drcall-global-prod", level=~"ERROR|CRITICAL"} |~ "exception|error|fatal"'
+      frontend: '{namespace="drcall-global-prod", source="frontend", kind="error"}'
     github:
       owner: spherecorp-kr
-      repo: drcall-global-backend
+      repos:
+        backend: drcall-global-backend
+        frontend: drcall-global-frontend
     branch: develop
     services:
       - patient-service
@@ -26,15 +28,15 @@ targets:
       - shipping-service
       - webhook-receiver-service
 
-# Example: Adding another project
+# Example: CloudWatch-based project
 # - name: other-project
-#   type: ec2-docker
+#   type: cloudwatch
 #   region: ap-northeast-2
 #   log_groups:
 #     - pattern: "/other-project/prod/*"
 #   github:
 #     owner: spherecorp-kr
-#     repo: other-project
+#     repos:
+#       backend: other-project
 #   services:
 #     - api-server
-#     - worker

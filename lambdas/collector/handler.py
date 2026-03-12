@@ -17,6 +17,7 @@ import yaml
 from lambdas.shared.config import Config
 from lambdas.shared.models import ErrorEntry, TargetConfig
 from lambdas.collector.fingerprint import deduplicate_errors
+from lambdas.collector.loki_client import query_loki_errors
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -70,7 +71,17 @@ def _load_targets(event: dict) -> list[TargetConfig]:
 
 
 def _collect_errors_for_target(target: TargetConfig) -> list[ErrorEntry]:
-    """Query CloudWatch Logs Insights for errors in a target."""
+    """Query logs for errors. Supports CloudWatch and Loki backends."""
+    # Use Loki if configured
+    if target.loki_url and target.loki_queries:
+        return query_loki_errors(
+            loki_url=target.loki_url,
+            queries=target.loki_queries,
+            services=target.services,
+            target_name=target.name,
+        )
+
+    # Fallback to CloudWatch Logs Insights
     errors: list[ErrorEntry] = []
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(hours=Config.LOG_QUERY_HOURS)
@@ -202,11 +213,12 @@ def _send_to_sqs(errors: list[ErrorEntry], targets: list[TargetConfig]) -> int:
     batch: list[dict] = []
     for error in errors:
         target = target_map.get(error.environment, targets[0])
+        github_repo = target.get_repo_for_source(error.source)
         message = {
             "error": error.to_dict(),
             "target": {
                 "github_owner": target.github_owner,
-                "github_repo": target.github_repo,
+                "github_repo": github_repo,
                 "branch": target.branch,
             },
         }

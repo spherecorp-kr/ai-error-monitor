@@ -77,6 +77,19 @@ class TargetConfig:
     github_repo: str
     services: list[str] = field(default_factory=list)
     branch: str = "main"
+    # Loki-specific
+    loki_url: str = ""
+    loki_queries: dict = field(default_factory=dict)  # {"backend": "...", "frontend": "..."}
+    # Multi-repo: source_type -> repo name (e.g., {"backend": "repo-backend", "frontend": "repo-frontend"})
+    github_repos: dict = field(default_factory=dict)
+
+    def get_repo_for_source(self, source: str) -> str:
+        """Get GitHub repo name based on error source type (backend/frontend)."""
+        if self.github_repos:
+            if "frontend" in source:
+                return self.github_repos.get("frontend", self.github_repo)
+            return self.github_repos.get("backend", self.github_repo)
+        return self.github_repo
 
     @classmethod
     def from_dict(cls, data: dict) -> TargetConfig:
@@ -87,7 +100,10 @@ class TargetConfig:
             region=data.get("region", "ap-southeast-7"),
             log_groups=data.get("log_groups", []),
             github_owner=github.get("owner", ""),
-            github_repo=github.get("repo", ""),
+            github_repo=github.get("repo", github.get("repos", {}).get("backend", "")),
             services=data.get("services", []),
             branch=data.get("branch", "main"),
+            loki_url=data.get("loki_url", ""),
+            loki_queries=data.get("loki_queries", {}),
+            github_repos=github.get("repos", {}),
         )

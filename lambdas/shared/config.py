@@ -42,7 +42,7 @@ class Config:
     # OpenAI (from Secrets Manager or env var for local dev)
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or _get_secret(os.environ.get("OPENAI_API_KEY_ARN", ""))
     CLASSIFY_MODEL = os.environ.get("CLASSIFY_MODEL", "gpt-5-nano")
-    ANALYZE_MODEL = os.environ.get("ANALYZE_MODEL", "codex-mini-latest")
+    ANALYZE_MODEL = os.environ.get("ANALYZE_MODEL", "gpt-5.1-codex-mini")
 
     # GitHub (from Secrets Manager or env var for local dev)
     GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or _get_secret(os.environ.get("GITHUB_TOKEN_ARN", ""))

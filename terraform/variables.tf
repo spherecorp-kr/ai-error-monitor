@@ -43,6 +43,18 @@ variable "duplicate_ttl_hours" {
   default     = 72
 }
 
+variable "vpc_subnet_ids" {
+  description = "Private subnet IDs for Lambda VPC access (required for Loki queries)"
+  type        = list(string)
+  default     = []
+}
+
+variable "vpc_security_group_ids" {
+  description = "Security group IDs for Lambda VPC access"
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Additional tags"
   type        = map(string)
