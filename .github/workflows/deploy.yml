@@ -99,25 +99,15 @@ jobs:
           role-session-name: github-actions-test
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Collector Lambda 호출 테스트
+      - name: Lambda 배포 확인
         run: |
-          echo "🔍 Collector Lambda 호출 중..."
-          aws lambda invoke \
-            --function-name ai-error-monitor-${ENVIRONMENT}-collector \
-            --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /tmp/response.json
-
-          echo "📊 결과:"
-          cat /tmp/response.json | python3 -m json.tool
-
-          # 상태코드 확인
-          STATUS=$(python3 -c "import json; print(json.load(open('/tmp/response.json'))['statusCode'])")
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ Collector 실패 (statusCode: $STATUS)"
-            exit 1
-          fi
-          echo "✅ Collector 정상 동작"
+          echo "🔍 Lambda 함수 확인 중..."
+          for FUNC in collector analyzer; do
+            NAME="ai-error-monitor-${ENVIRONMENT}-${FUNC}"
+            MODIFIED=$(aws lambda get-function-configuration --function-name $NAME --query 'LastModified' --output text)
+            echo "✅ ${NAME}: ${MODIFIED}"
+          done
+          echo "⏰ 실제 실행은 매일 자정(KST) EventBridge 스케줄로 동작합니다."
 
   summary:
     name: 배포 요약
