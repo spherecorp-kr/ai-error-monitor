@@ -12,6 +12,7 @@ from lambdas.shared.config import Config
 from lambdas.shared.models import ErrorEntry, ErrorAnalysis
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -110,25 +111,37 @@ Use get_file_content or search_code tools to fetch relevant source files, then a
     ]
 
     # Use Responses API with tool loop
-    response = client.responses.create(
-        model=Config.ANALYZE_MODEL,
-        instructions=system_prompt,
-        input=user_content,
-        tools=tools,
-        reasoning={"effort": "medium"},
-    )
+    try:
+        response = client.responses.create(
+            model=Config.ANALYZE_MODEL,
+            instructions=system_prompt,
+            input=user_content,
+            tools=tools,
+            reasoning={"effort": "medium"},
+        )
+    except Exception as e:
+        logger.error("OpenAI analyze_error initial call failed: %s", e)
+        return {
+            "root_cause": "분석 실패",
+            "affected_files": [],
+            "suggested_fix": "",
+            "confidence": 0.0,
+        }
 
     # Handle tool calls (max 5 iterations)
-    for _ in range(5):
+    max_iterations = 5
+    for iteration in range(max_iterations):
         if not _has_tool_calls(response):
             break
 
         tool_results = []
         for item in response.output:
             if item.type == "function_call":
+                logger.info("Tool call [%d]: %s(%s)", iteration, item.name, item.arguments[:200])
                 result = _execute_tool(
                     item.name, json.loads(item.arguments), github_owner, github_repo, branch
                 )
+                logger.info("Tool result [%d]: %s", iteration, result[:200])
                 tool_results.append({
                     "type": "function_call_output",
                     "call_id": item.call_id,
@@ -136,14 +149,24 @@ Use get_file_content or search_code tools to fetch relevant source files, then a
                 })
 
         if tool_results:
-            response = client.responses.create(
-                model=Config.ANALYZE_MODEL,
-                instructions=system_prompt,
-                input=tool_results,
-                tools=tools,
-                previous_response_id=response.id,
-                reasoning={"effort": "medium"},
-            )
+            # On last iteration, remove tools to force text response
+            call_tools = tools if iteration < max_iterations - 1 else []
+            try:
+                response = client.responses.create(
+                    model=Config.ANALYZE_MODEL,
+                    instructions=system_prompt,
+                    input=tool_results,
+                    tools=call_tools,
+                    previous_response_id=response.id,
+                    reasoning={"effort": "medium"},
+                )
+            except Exception as e:
+                logger.error("OpenAI tool follow-up call failed: %s", e)
+                break
+
+    # Log raw output for debugging
+    logger.info("Analyze output_text (first 500): %s", (response.output_text or "(None)")[:500])
+    logger.info("Analyze output types: %s", [item.type for item in response.output])
 
     return _parse_json_response(response.output_text, {
         "root_cause": "분석 실패",
