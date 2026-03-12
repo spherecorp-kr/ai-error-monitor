@@ -1,84 +1,147 @@
 name: Deploy AI Error Monitor
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'lambdas/**'
+      - 'config/**'
+      - 'terraform/**'
+      - 'requirements.txt'
+      - 'scripts/**'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Target environment'
-        required: true
-        default: 'dev'
-        type: choice
-        options:
-          - dev
-          - prod
+
+env:
+  AWS_REGION: ap-southeast-7
+  ENVIRONMENT: prod
 
 permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: deploy-ai-error-monitor
+  cancel-in-progress: false
+
 jobs:
   build:
+    name: Lambda 패키지 빌드
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Python 3.12 설정
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Build Lambda packages
+      - name: Lambda 패키지 빌드
         run: |
           chmod +x scripts/build.sh
           ./scripts/build.sh
 
-      - uses: actions/upload-artifact@v4
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
         with:
           name: lambda-packages
           path: dist/*.zip
+          retention-days: 3
 
   deploy:
+    name: Terraform 배포
     needs: build
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'dev' }}
     steps:
-      - uses: actions/checkout@v4
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - name: Lambda 패키지 다운로드
+        uses: actions/download-artifact@v4
         with:
           name: lambda-packages
           path: dist/
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: AWS 자격증명 설정 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform 설정
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.9"
 
-      - name: Terraform Init & Apply
+      - name: Terraform Init
         working-directory: terraform
-        env:
-          ENV: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          terraform init -backend-config=environments/${ENV}-backend.hcl
-          terraform apply -var-file=environments/${ENV}.tfvars -auto-approve
+        run: terraform init -backend-config=environments/${ENVIRONMENT}-backend.hcl
 
-  test:
+      - name: Terraform Plan
+        working-directory: terraform
+        run: terraform plan -var-file=environments/${ENVIRONMENT}.tfvars -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply tfplan
+
+  smoke-test:
+    name: Smoke Test
     needs: deploy
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'dev' }}
     steps:
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: AWS 자격증명 설정 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: github-actions-test
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Invoke collector (dry run)
+      - name: Collector Lambda 호출 테스트
         run: |
+          echo "🔍 Collector Lambda 호출 중..."
           aws lambda invoke \
-            --function-name ai-error-monitor-${{ github.event.inputs.environment || 'dev' }}-collector \
+            --function-name ai-error-monitor-${ENVIRONMENT}-collector \
             --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
             /tmp/response.json
-          cat /tmp/response.json
+
+          echo "📊 결과:"
+          cat /tmp/response.json | python3 -m json.tool
+
+          # 상태코드 확인
+          STATUS=$(python3 -c "import json; print(json.load(open('/tmp/response.json'))['statusCode'])")
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Collector 실패 (statusCode: $STATUS)"
+            exit 1
+          fi
+          echo "✅ Collector 정상 동작"
+
+  summary:
+    name: 배포 요약
+    needs: [build, deploy, smoke-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 요약 생성
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          TEST_RESULT: ${{ needs.smoke-test.result }}
+          SOURCE_SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          GIT_SHA=$(echo "$SOURCE_SHA" | cut -c1-7)
+          echo "## 🤖 AI Error Monitor 배포 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 항목 | 값 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| **환경** | PROD (Lambda) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **리전** | ap-southeast-7 (Bangkok) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **커밋** | \`${GIT_SHA}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **실행자** | @${ACTOR} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **빌드** | ${BUILD_RESULT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **배포** | ${DEPLOY_RESULT} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **테스트** | ${TEST_RESULT} |" >> $GITHUB_STEP_SUMMARY
