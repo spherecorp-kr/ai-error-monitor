@@ -1,8 +1,6 @@
 name: Deploy AI Error Monitor
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -52,8 +50,8 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-arn: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -74,8 +72,8 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-arn: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Invoke collector (dry run)
         run: |
