@@ -136,7 +136,7 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = ["${var.openai_api_key_secret_arn}*", "${var.github_token_secret_arn}*"]
+        Resource = compact(["${var.openai_api_key_secret_arn}*", "${var.github_token_secret_arn}*", var.github_app_private_key_arn != "" ? "${var.github_app_private_key_arn}*" : ""])
       },
       {
         Effect = "Allow"
@@ -215,10 +215,12 @@ resource "aws_lambda_function" "analyzer" {
     variables = {
       AWS_REGION_OVERRIDE  = var.aws_region
       DYNAMODB_TABLE       = aws_dynamodb_table.errors.name
-      OPENAI_API_KEY_ARN   = var.openai_api_key_secret_arn
-      GITHUB_TOKEN_ARN     = var.github_token_secret_arn
-      CLASSIFY_MODEL       = "gpt-5-nano"
-      ANALYZE_MODEL        = "gpt-5.1-codex-mini"
+      OPENAI_API_KEY_ARN           = var.openai_api_key_secret_arn
+      GITHUB_APP_ID                = var.github_app_id
+      GITHUB_APP_INSTALLATION_ID   = var.github_app_installation_id
+      GITHUB_APP_PRIVATE_KEY_ARN   = var.github_app_private_key_arn
+      CLASSIFY_MODEL               = "gpt-5-nano"
+      ANALYZE_MODEL                = "gpt-5.1-codex-mini"
     }
   }
 

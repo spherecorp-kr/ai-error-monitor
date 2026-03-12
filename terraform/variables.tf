@@ -43,6 +43,24 @@ variable "duplicate_ttl_hours" {
   default     = 72
 }
 
+variable "github_app_id" {
+  description = "GitHub App ID"
+  type        = string
+  default     = ""
+}
+
+variable "github_app_installation_id" {
+  description = "GitHub App Installation ID"
+  type        = string
+  default     = ""
+}
+
+variable "github_app_private_key_arn" {
+  description = "ARN of Secrets Manager secret containing GitHub App private key"
+  type        = string
+  default     = ""
+}
+
 variable "vpc_subnet_ids" {
   description = "Private subnet IDs for Lambda VPC access (required for Loki queries)"
   type        = list(string)

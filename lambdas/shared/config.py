@@ -44,7 +44,12 @@ class Config:
     CLASSIFY_MODEL = os.environ.get("CLASSIFY_MODEL", "gpt-5-nano")
     ANALYZE_MODEL = os.environ.get("ANALYZE_MODEL", "gpt-5.1-codex-mini")
 
-    # GitHub (from Secrets Manager or env var for local dev)
+    # GitHub App authentication
+    GITHUB_APP_ID = os.environ.get("GITHUB_APP_ID", "")
+    GITHUB_APP_INSTALLATION_ID = os.environ.get("GITHUB_APP_INSTALLATION_ID", "")
+    GITHUB_APP_PRIVATE_KEY = os.environ.get("GITHUB_APP_PRIVATE_KEY") or _get_secret(os.environ.get("GITHUB_APP_PRIVATE_KEY_ARN", ""))
+
+    # GitHub PAT fallback (deprecated, use App auth)
     GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or _get_secret(os.environ.get("GITHUB_TOKEN_ARN", ""))
 
     # Monitoring

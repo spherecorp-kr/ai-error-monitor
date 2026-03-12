@@ -16,7 +16,7 @@ docker run --rm \
   -v "$PROJECT_DIR":/var/task \
   -w /var/task \
   public.ecr.aws/lambda/python:3.12 \
-  pip install -r requirements.txt -t /var/task/dist/package --quiet
+  bash -c "pip install -r requirements.txt -t /var/task/dist/package --quiet && chmod -R 777 /var/task/dist/package"
 
 echo "==> Building collector.zip..."
 cd "$DIST_DIR/package"

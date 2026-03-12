@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 
 from openai import OpenAI
@@ -42,16 +43,12 @@ Logger: {error.logger}"""
         reasoning={"effort": "low"},
     )
 
-    try:
-        return json.loads(response.output_text)
-    except (json.JSONDecodeError, AttributeError) as e:
-        logger.error("Failed to parse classification response: %s", e)
-        return {
-            "category": "Unknown",
-            "severity": "medium",
-            "is_actionable": False,
-            "summary": error.message[:100],
-        }
+    return _parse_json_response(response.output_text, {
+        "category": "Unknown",
+        "severity": "medium",
+        "is_actionable": False,
+        "summary": error.message[:100],
+    }, "classification")
 
 
 def analyze_error(
@@ -65,16 +62,18 @@ def analyze_error(
     client = _get_client()
     system_prompt = _load_prompt("analyze")
 
+    stack_section = error.stack_trace[:4000] if error.stack_trace else "(스택트레이스 없음 - search_code 도구를 사용하여 에러 메시지에 언급된 클래스/메서드를 검색하세요)"
+
     user_content = f"""Error Classification: {json.dumps(classification)}
 
 Service: {error.service}
 Message: {error.message}
 Stack Trace:
-{error.stack_trace[:4000]}
+{stack_section}
 
 Repository: {github_owner}/{github_repo} (branch: {branch})
 
-Please use the get_file_content tool to fetch relevant source files from the stack trace, then analyze the root cause."""
+Use get_file_content or search_code tools to fetch relevant source files, then analyze the root cause in Korean."""
 
     # Define tools for GitHub code access
     tools = [
@@ -146,16 +145,39 @@ Please use the get_file_content tool to fetch relevant source files from the sta
                 reasoning={"effort": "medium"},
             )
 
+    return _parse_json_response(response.output_text, {
+        "root_cause": "분석 실패",
+        "affected_files": [],
+        "suggested_fix": "",
+        "confidence": 0.0,
+    }, "analysis")
+
+
+def _parse_json_response(text: str | None, fallback: dict, label: str) -> dict:
+    """Parse JSON from model output, handling markdown fences and embedded JSON."""
+    if not text:
+        logger.error("Empty %s response", label)
+        return fallback
     try:
-        return json.loads(response.output_text)
-    except (json.JSONDecodeError, AttributeError) as e:
-        logger.error("Failed to parse analysis response: %s", e)
-        return {
-            "root_cause": "Analysis failed",
-            "affected_files": [],
-            "suggested_fix": "",
-            "confidence": 0.0,
-        }
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # Try extracting JSON from markdown code fences
+    match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
+    # Try finding first { ... } block
+    match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+    logger.error("Failed to parse %s response: %s", label, text[:200])
+    return fallback
 
 
 def _has_tool_calls(response) -> bool:
@@ -165,9 +187,11 @@ def _has_tool_calls(response) -> bool:
 def _execute_tool(name: str, args: dict, owner: str, repo: str, branch: str) -> str:
     """Execute a tool call against GitHub API."""
     import requests
+    from lambdas.shared.github_auth import get_installation_token
 
+    token = get_installation_token() if Config.GITHUB_APP_ID else Config.GITHUB_TOKEN
     headers = {
-        "Authorization": f"Bearer {Config.GITHUB_TOKEN}",
+        "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github.v3.raw",
     }
 
