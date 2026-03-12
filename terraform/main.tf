@@ -202,9 +202,8 @@ resource "aws_lambda_function" "analyzer" {
 resource "aws_lambda_event_source_mapping" "analyzer_sqs" {
   event_source_arn                   = aws_sqs_queue.errors.arn
   function_name                      = aws_lambda_function.analyzer.arn
-  batch_size                         = 5
-  maximum_batching_window_in_seconds = 60
-  enabled                            = true
+  batch_size = 5
+  enabled    = true
 }
 
 # ──────────────────────────────────────────────

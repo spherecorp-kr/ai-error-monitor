@@ -10,7 +10,7 @@ rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
 echo "==> Installing dependencies..."
-pip install -r "$PROJECT_DIR/requirements.txt" -t "$DIST_DIR/package" --quiet
+pip3 install -r "$PROJECT_DIR/requirements.txt" -t "$DIST_DIR/package" --quiet
 
 echo "==> Building collector.zip..."
 cd "$DIST_DIR/package"
