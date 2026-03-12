@@ -136,7 +136,7 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [var.openai_api_key_secret_arn, var.github_token_secret_arn]
+        Resource = ["${var.openai_api_key_secret_arn}*", "${var.github_token_secret_arn}*"]
       },
     ]
   })
@@ -191,7 +191,7 @@ resource "aws_lambda_function" "analyzer" {
       OPENAI_API_KEY_ARN   = var.openai_api_key_secret_arn
       GITHUB_TOKEN_ARN     = var.github_token_secret_arn
       CLASSIFY_MODEL       = "gpt-5-nano"
-      ANALYZE_MODEL        = "codex-mini-latest"
+      ANALYZE_MODEL        = "gpt-5-nano"
     }
   }
 

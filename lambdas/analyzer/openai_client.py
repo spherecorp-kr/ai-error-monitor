@@ -39,7 +39,7 @@ Logger: {error.logger}"""
         model=Config.CLASSIFY_MODEL,
         instructions=system_prompt,
         input=user_content,
-        temperature=0.1,
+        reasoning={"effort": "low"},
     )
 
     try:
@@ -116,7 +116,7 @@ Please use the get_file_content tool to fetch relevant source files from the sta
         instructions=system_prompt,
         input=user_content,
         tools=tools,
-        temperature=0.1,
+        reasoning={"effort": "medium"},
     )
 
     # Handle tool calls (max 5 iterations)
@@ -143,7 +143,7 @@ Please use the get_file_content tool to fetch relevant source files from the sta
                 input=tool_results,
                 tools=tools,
                 previous_response_id=response.id,
-                temperature=0.1,
+                reasoning={"effort": "medium"},
             )
 
     try:
